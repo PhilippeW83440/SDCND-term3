@@ -1,0 +1,46 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/phw/Udacity-term3/Prediction-NaiveBayes/classifier.cpp
+iostream
+-
+sstream
+-
+fstream
+-
+math.h
+-
+vector
+-
+classifier.h
+/home/phw/Udacity-term3/Prediction-NaiveBayes/classifier.h
+
+/home/phw/Udacity-term3/Prediction-NaiveBayes/classifier.h
+iostream
+-
+sstream
+-
+fstream
+-
+math.h
+-
+vector
+-
+
+/home/phw/Udacity-term3/Prediction-NaiveBayes/main.cpp
+classifier.h
+/home/phw/Udacity-term3/Prediction-NaiveBayes/classifier.h
+iostream
+-
+fstream
+-
+math.h
+-
+vector
+-
+

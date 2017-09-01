@@ -1,0 +1,3 @@
+/home/phw/Udacity-term3/Prediction-NaiveBayes/CMakeFiles/edit_cache.dir
+/home/phw/Udacity-term3/Prediction-NaiveBayes/CMakeFiles/rebuild_cache.dir
+/home/phw/Udacity-term3/Prediction-NaiveBayes/CMakeFiles/nb_classifier.dir
