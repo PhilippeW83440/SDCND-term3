@@ -59,6 +59,10 @@ public:
   void realize_lane_change(map<int,vector< vector<int> > > predictions, string direction);
   void realize_prep_lane_change(map<int,vector< vector<int> > > predictions, string direction);
   vector<vector<int> > generate_predictions(int horizon);
+
+private:
+  void display_predictions(map<int, vector <vector<int> > > predictions);
+  bool check_no_collision(map<int,vector < vector<int> > > predictions, int target_lane, int timesteps);
 };
 
 #endif

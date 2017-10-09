@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <iterator>
+#include <cassert>
 
 /**
  * Initializes Vehicle
@@ -21,6 +22,50 @@ Vehicle::Vehicle(int lane, int s, int v, int a) {
 }
 
 Vehicle::~Vehicle() {}
+
+
+void Vehicle::display_predictions(map<int,vector < vector<int> > > predictions) {
+  for (int i = 1; i < predictions.size(); ++i) {
+  		for (int j = 0; j < predictions[i].size(); ++j) {
+  			cout << "ID "    << i
+  				 << " Lane:" << predictions[i][j][0] 
+  				 << " S:"    << predictions[i][j][1] << endl;
+  		}
+  	}
+}
+
+bool Vehicle::check_no_collision(map<int,vector < vector<int> > > predictions, int target_lane, int timesteps) {
+  int ego_lane = target_lane;
+  int ego_s = this->s;
+  int ego_v = this->v;
+  int ego_a = this->a;
+  int t = 1; // we work by steps of 1 second
+
+  // TODO check timesteps < 10
+  assert(timesteps <= 10);
+
+  for (int step = 0; step < timesteps; ++step) 
+  {
+    map<int, vector<vector<int> > >::iterator it = predictions.begin();
+    while(it != predictions.end())
+    {
+      int v_id = it->first;
+      vector<vector<int>> v = it->second;
+
+      if (v[step][0] == ego_lane && (abs(v[step][1] - ego_s) <= L))
+      {
+        cout << "collision: in target_lane=" << target_lane << " with v_id= " << v_id << " in " << step << " seconds" << endl;
+        return false;
+      }
+
+      it++;
+    }
+    // Predicts state of vehicle in t seconds (assuming constant acceleration)
+    ego_s = ego_s + ego_v * t + ego_a * t * t / 2;
+    ego_v = ego_v + ego_a * t;
+  }
+  return true;
+}
 
 // TODO - Implement this method.
 void Vehicle::update_state(map<int,vector < vector<int> > > predictions) {
@@ -57,7 +102,32 @@ void Vehicle::update_state(map<int,vector < vector<int> > > predictions) {
     }
 
     */
-    state = "KL"; // this is an example of how you change state.
+    //state = "KL"; // this is an example of how you change state.
+
+    if(state.compare("CS") == 0)
+    {
+      state = "KL";
+    }
+    else if(state.compare("KL") == 0 && this->lane > 0 && goal_s - this->s < 150)
+    {
+      state = "PLCR";
+    }
+    else if(state.compare("PLCR") == 0)
+    {
+      // check Lane Change is SAFE (no collision) and LEGAL (no speed above limit) 
+      if (check_no_collision(predictions, this->lane - 1, 10))
+      {
+        state = "LCR";
+      }
+    }
+    else if(state.compare("LCR") == 0)
+    {
+      state = "KL";
+    }
+
+  display_predictions(predictions);
+  cout << "state=" << state << " s=" << this->s << " lane=" << this->lane << " v=" << this->v << " a=" << this->a << endl;
+
 
 
 }
