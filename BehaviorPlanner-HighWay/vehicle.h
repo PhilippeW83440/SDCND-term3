@@ -22,7 +22,7 @@ public:
 
   };
 
-  int L = 3;
+  int L = 1;
   int preferred_buffer = 6; // impacts "keep lane" behavior.
   int lane;
   int s;
@@ -62,7 +62,7 @@ public:
 
 private:
   void display_predictions(map<int, vector <vector<int> > > predictions);
-  bool check_no_collision(map<int,vector < vector<int> > > predictions, int target_lane, int timesteps);
+  bool check_collision(map<int,vector < vector<int> > > predictions, int target_lane, int timesteps);
   vector<string> find_possible_next_states(string current_state, int current_lane);
   vector<int> generate_trajectory_vars(string next_state);
   double cost_function(vector<int> trajectory_vars, map<int,vector < vector<int> > > predictions);

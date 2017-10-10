@@ -34,7 +34,7 @@ void Vehicle::display_predictions(map<int,vector < vector<int> > > predictions) 
   	}
 }
 
-bool Vehicle::check_no_collision(map<int,vector < vector<int> > > predictions, int target_lane, int timesteps) {
+bool Vehicle::check_collision(map<int,vector < vector<int> > > predictions, int target_lane, int timesteps) {
   int ego_lane = target_lane;
   int ego_s = this->s;
   int ego_v = this->v;
@@ -47,6 +47,7 @@ bool Vehicle::check_no_collision(map<int,vector < vector<int> > > predictions, i
   for (int step = 0; step < timesteps; ++step) 
   {
     map<int, vector<vector<int> > >::iterator it = predictions.begin();
+    it++; // first one is the ego vehicle
     while(it != predictions.end())
     {
       int v_id = it->first;
@@ -55,7 +56,7 @@ bool Vehicle::check_no_collision(map<int,vector < vector<int> > > predictions, i
       if (v[step][0] == ego_lane && (abs(v[step][1] - ego_s) <= L))
       {
         cout << "collision: in target_lane=" << target_lane << " with v_id= " << v_id << " in " << step << " seconds" << endl;
-        return false;
+        return true;
       }
 
       it++;
@@ -64,7 +65,7 @@ bool Vehicle::check_no_collision(map<int,vector < vector<int> > > predictions, i
     ego_s = ego_s + ego_v * t + ego_a * t * t / 2;
     ego_v = ego_v + ego_a * t;
   }
-  return true;
+  return false;
 }
 
 
@@ -81,40 +82,40 @@ vector<string> Vehicle::find_possible_next_states(string current_state, int curr
   }
   else if (current_state == "LCL")
   {
-    return {"LCL", "KL"};
+    return {"KL"}; // Lane Change is 1 step here
   }
   else if (current_state == "LCR")
   {
-    return {"LCR", "KL"};
+    return {"KL"}; // Lane Change is 1 step here
   }
   else if (current_state == "PLCL")
   {
-    return {"PLCL", "LCL", "KL"};
+    return {"LCL", "PLCL", "KL"}; // order matters (preferred one first)
   }
   else if (current_state == "PLCR")
   {
-    return {"PLCR", "LCR", "KL"};
+    return {"LCR", "PLCR", "KL"}; // order matters (preferred one first)
   }
 
 }
 
 vector<int> Vehicle::generate_trajectory_vars(string next_state) {
-    int pred_lane = this->lane;
-    int pred_s = this->s;
-    int pred_v = this->v;
-    int pred_a = this->a;
+    int target_lane = this->lane;
+    int target_s = this->s;
+    int target_v = this->v;
+    int target_a = this->a;
 
-    if (next_state == "LCR")
+    if (next_state == "LCR" || next_state == "PLCR")
     {
-      pred_lane -= 1;
+      target_lane -= 1;
     }
-    else if (next_state == "LCL")
+    else if (next_state == "LCL" || next_state == "PLCL")
     {
-      pred_lane += 1;
+      target_lane += 1;
     }
-    //assert(pred_lane >= 0); TODO
+    assert(target_lane >= 0);
 
-    return {pred_lane, pred_s, pred_v, pred_a};
+    return {target_lane, target_s, target_v, target_a};
 }
 
 double Vehicle::cost_function(vector<int> trajectory_vars, map<int,vector < vector<int> > > predictions) {
@@ -124,7 +125,7 @@ double Vehicle::cost_function(vector<int> trajectory_vars, map<int,vector < vect
   int pred_a = trajectory_vars[3];
   int delta_d;
 
-  double cost = 0;
+  double cost = 0; // lower cost preferred
 
   double cost_feasibility = 0; // vs collisions, vs vehicle capabilities
   double cost_safety = 0; // vs buffer distance, vs visibility
@@ -138,8 +139,23 @@ double Vehicle::cost_function(vector<int> trajectory_vars, map<int,vector < vect
   double weight_comfort     = 10; // vs jerk
   double weight_efficiency  = 1; // vs desired lane and time to goal
 
+  // 1) FEASIBILITY cost
+  if (check_collision(predictions, pred_lane, 10))
+  {
+    cost_feasibility = 10;
+  }
   cost = cost + weight_feasibility * cost_feasibility;
 
+  // 2) SAFETY cost
+  cost = cost + weight_safety * cost_safety;
+
+  // 3) LEGALITY cost
+  cost = cost + weight_legality * cost_legality;
+
+  // 4) COMFORT cost
+  cost = cost + weight_comfort * cost_comfort;
+
+  // 5) EFFICIENCY cost
   if (goal_s - pred_s < 150)
   {
     // close to goal, move to goal line
@@ -148,7 +164,7 @@ double Vehicle::cost_function(vector<int> trajectory_vars, map<int,vector < vect
   else
   {
     // try to drive as fast as possible: left most line
-    delta_d = abs(pred_lane - 2);
+    delta_d = 3 - pred_lane;
   }
   cost_efficiency = delta_d; // a number between 0 and 3
   cost = cost + weight_efficiency * cost_efficiency;
@@ -193,14 +209,18 @@ void Vehicle::update_state(map<int,vector < vector<int> > > predictions) {
     */
     //state = "KL"; // this is an example of how you change state.
 
+    cout << "current state=" << state << " s=" << this->s << " lane=" << this->lane << " v=" << this->v << " a=" << this->a << endl;
+
     vector<string> possible_next_states = find_possible_next_states(state, this->lane);
     vector<double> costs;
 
     for (auto const& next_state : possible_next_states)
     {
-      // pred_lane, pred_s, pred_v, pred_a
-      vector<int> trajectory_vars = generate_trajectory_vars(next_state);
-      costs.push_back(cost_function(trajectory_vars, predictions));
+      // target_lane, target_s, target_v, target_a
+      vector<int> trajectory_target = generate_trajectory_vars(next_state);
+      double cost = cost_function(trajectory_target, predictions);
+      costs.push_back(cost);
+      cout << "possible next state=" << next_state << " cost=" << cost << endl;
     }
 
     double min_cost = 1e10;
@@ -213,8 +233,10 @@ void Vehicle::update_state(map<int,vector < vector<int> > > predictions) {
         min_cost_index = i;
       }
     }
-    //state = possible_next_states[min_cost_index];
+    state = possible_next_states[min_cost_index];
+    cout << "next state=" << state << endl;
 
+#if 0
     if(state.compare("CS") == 0)
     {
       state = "KL";
@@ -226,7 +248,7 @@ void Vehicle::update_state(map<int,vector < vector<int> > > predictions) {
     else if(state.compare("PLCR") == 0)
     {
       // check Lane Change is SAFE (no collision) and LEGAL (no speed above limit) 
-      if (check_no_collision(predictions, this->lane - 1, 10))
+      if (!check_collision(predictions, this->lane - 1, 10))
       {
         state = "LCR";
       }
@@ -238,7 +260,7 @@ void Vehicle::update_state(map<int,vector < vector<int> > > predictions) {
 
   display_predictions(predictions);
   cout << "state=" << state << " s=" << this->s << " lane=" << this->lane << " v=" << this->v << " a=" << this->a << endl;
-
+#endif
 
 
 }
