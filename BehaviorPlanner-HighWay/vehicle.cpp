@@ -67,6 +67,95 @@ bool Vehicle::check_no_collision(map<int,vector < vector<int> > > predictions, i
   return true;
 }
 
+
+vector<string> Vehicle::find_possible_next_states(string current_state, int current_lane) {
+
+  if (current_state == "KL")
+  {
+    if (current_lane == 0)
+      return {"KL", "PLCL" };
+    else if (current_lane == 3)
+      return {"KL", "PLCR" };
+    else
+      return {"KL", "PLCL", "PLCR" };
+  }
+  else if (current_state == "LCL")
+  {
+    return {"LCL", "KL"};
+  }
+  else if (current_state == "LCR")
+  {
+    return {"LCR", "KL"};
+  }
+  else if (current_state == "PLCL")
+  {
+    return {"PLCL", "LCL", "KL"};
+  }
+  else if (current_state == "PLCR")
+  {
+    return {"PLCR", "LCR", "KL"};
+  }
+
+}
+
+vector<int> Vehicle::generate_trajectory_vars(string next_state) {
+    int pred_lane = this->lane;
+    int pred_s = this->s;
+    int pred_v = this->v;
+    int pred_a = this->a;
+
+    if (next_state == "LCR")
+    {
+      pred_lane -= 1;
+    }
+    else if (next_state == "LCL")
+    {
+      pred_lane += 1;
+    }
+    //assert(pred_lane >= 0); TODO
+
+    return {pred_lane, pred_s, pred_v, pred_a};
+}
+
+double Vehicle::cost_function(vector<int> trajectory_vars, map<int,vector < vector<int> > > predictions) {
+  int pred_lane = trajectory_vars[0];
+  int pred_s = trajectory_vars[1];
+  int pred_v = trajectory_vars[2];
+  int pred_a = trajectory_vars[3];
+  int delta_d;
+
+  double cost = 0;
+
+  double cost_feasibility = 0; // vs collisions, vs vehicle capabilities
+  double cost_safety = 0; // vs buffer distance, vs visibility
+  double cost_legality = 0; // vs speed limits
+  double cost_comfort = 0; // vs jerk
+  double cost_efficiency = 0; // vs desired lane and time to goal
+
+  double weight_feasibility = 10000; // vs collisions, vs vehicle capabilities
+  double weight_safety      = 1000; // vs buffer distance, vs visibility
+  double weight_legality    = 100; // vs speed limits
+  double weight_comfort     = 10; // vs jerk
+  double weight_efficiency  = 1; // vs desired lane and time to goal
+
+  cost = cost + weight_feasibility * cost_feasibility;
+
+  if (goal_s - pred_s < 150)
+  {
+    // close to goal, move to goal line
+    delta_d = abs(pred_lane - goal_lane);
+  }
+  else
+  {
+    // try to drive as fast as possible: left most line
+    delta_d = abs(pred_lane - 2);
+  }
+  cost_efficiency = delta_d; // a number between 0 and 3
+  cost = cost + weight_efficiency * cost_efficiency;
+
+  return cost;
+}
+
 // TODO - Implement this method.
 void Vehicle::update_state(map<int,vector < vector<int> > > predictions) {
 	/*
@@ -103,6 +192,28 @@ void Vehicle::update_state(map<int,vector < vector<int> > > predictions) {
 
     */
     //state = "KL"; // this is an example of how you change state.
+
+    vector<string> possible_next_states = find_possible_next_states(state, this->lane);
+    vector<double> costs;
+
+    for (auto const& next_state : possible_next_states)
+    {
+      // pred_lane, pred_s, pred_v, pred_a
+      vector<int> trajectory_vars = generate_trajectory_vars(next_state);
+      costs.push_back(cost_function(trajectory_vars, predictions));
+    }
+
+    double min_cost = 1e10;
+    int min_cost_index = 0;
+    for (int i = 0; i < costs.size(); i++)
+    {
+      if (costs[i] < min_cost)
+      {
+        min_cost = costs[i];
+        min_cost_index = i;
+      }
+    }
+    //state = possible_next_states[min_cost_index];
 
     if(state.compare("CS") == 0)
     {
